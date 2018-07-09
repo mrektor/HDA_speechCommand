@@ -6,6 +6,12 @@ import random as rnd
 ## division for train and test
 from sklearn.model_selection import train_test_split
 import pickle
+from keras.activations import softmax
+from keras.layers.advanced_activations import LeakyReLU
+from keras.models import Sequential, load_model
+from keras.layers import Dense, Activation, Flatten, Dropout, Convolution2D, MaxPooling2D, AveragePooling2D, BatchNormalization
+
+from IPython.display import clear_output, Image, display, HTML
 
 def plotConfusionMatrix(predictions, true_labels, labels):
     k = true_labels.shape[1]
@@ -115,3 +121,116 @@ def train_test_creator(dic, unknownClass, with_unknown = True, test_size = 0.2, 
         pickle.dump(labelList, f)
         
     return x_train, y_train, x_test, y_test, labelList 
+
+
+#show net
+def strip_consts(graph_def, max_const_size=32):
+    """Strip large constant values from graph_def."""
+    strip_def = tf.GraphDef()
+    for n0 in graph_def.node:
+        n = strip_def.node.add() 
+        n.MergeFrom(n0)
+        if n.op == 'Const':
+            tensor = n.attr['value'].tensor
+            size = len(tensor.tensor_content)
+            if size > max_const_size:
+                tensor.tensor_content = "<stripped %d bytes>"%size
+    return strip_def
+
+def show_graph(graph_def, max_const_size=32):
+    """Visualize TensorFlow graph."""
+    if hasattr(graph_def, 'as_graph_def'):
+        graph_def = graph_def.as_graph_def()
+    strip_def = strip_consts(graph_def, max_const_size=max_const_size)
+    code = """
+        <script>
+          function load() {{
+            document.getElementById("{id}").pbtxt = {data};
+          }}
+        </script>
+        <link rel="import" href="https://tensorboard.appspot.com/tf-graph-basic.build.html" onload=load()>
+        <div style="height:600px">
+          <tf-graph-basic id="{id}"></tf-graph-basic>
+        </div>
+    """.format(data=repr(str(strip_def)), id='graph'+str(np.random.rand()))
+
+    iframe = """
+        <iframe seamless style="width:1200px;height:620px;border:0" srcdoc="{}"></iframe>
+    """.format(code.replace('"', '&quot;'))
+    display(HTML(iframe))
+
+    
+#Hyperas
+def data():
+    #load used data
+    with open('variables/train_test_split.pkl', 'rb') as f: 
+        x_train = pickle.load(f)
+        y_train = pickle.load(f)
+        x_test = pickle.load(f)
+        y_test = pickle.load(f) 
+    return x_train, y_train, x_test, y_test 
+
+def create_model(x_train, y_train, x_test, y_test):
+    activation = 'softplus'
+    minim = {{choice([8,16,20,24,32,30,46,50,64])}}
+    padding = 'same'
+    cnn = Sequential()
+
+    cnn.add(Convolution2D(minim, (4,2),  strides = (1,1), padding="valid", 
+                          input_shape=(x_train.shape[1], x_train.shape[2],1)))
+    cnn.add(Activation(activation))
+
+    cnn.add(Convolution2D(minim * 2, (2,2),  strides = (1,1), padding=padding))
+    cnn.add(Activation(activation))
+
+
+    cnn.add(Convolution2D(minim*4, (2,2),  strides = (1,1), padding=padding))
+    cnn.add(Activation(activation))
+
+    cnn.add(BatchNormalization())
+
+    cnn.add(MaxPooling2D(pool_size=(4,2)))
+
+    cnn.add(Dropout(0.4))
+    cnn.add(BatchNormalization())
+    cnn.add(Convolution2D(minim * 2, (2,2),  strides = (1,1), padding=padding ))
+    cnn.add(Activation(activation))
+
+    #cnn.add(Dropout(0.2))
+    cnn.add(Convolution2D(minim * 4, (2,2),  strides = (1,1), padding=padding))
+    cnn.add(Activation(activation))
+    cnn.add(BatchNormalization())
+
+    cnn.add(MaxPooling2D(pool_size=(2,2)))
+
+    cnn.add(Dropout(0.4))
+    cnn.add(BatchNormalization())
+    cnn.add(Convolution2D(minim *8, (2,2),  strides = (1,1), padding=padding))
+    cnn.add(Activation(activation))
+
+
+
+    cnn.add(MaxPooling2D(pool_size=(4,2)))
+
+    cnn.add(Dropout(0.3))
+
+
+    cnn.add(Flatten())
+
+    cnn.add(Dense(80, activation=activation))
+
+    cnn.add(Dropout(0.5))
+    cnn.add(BatchNormalization())
+
+    cnn.add(Dense(y_train.shape[1], activation="softplus"))
+
+    cnn.compile(loss="categorical_crossentropy", optimizer="adamax", metrics=['accuracy'])
+            
+    cnn.fit(x_train, y_train,
+              batch_size={{choice([128, 256])}},
+              epochs=30,
+              verbose=2,
+              validation_data=(x_test, y_test))
+    score, acc = cnn.evaluate(x_test, y_test, verbose=0)
+    print('Test accuracy:', acc)
+    return {'loss': -acc, 'status': STATUS_OK, 'model': cnn}
