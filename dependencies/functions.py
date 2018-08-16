@@ -38,31 +38,36 @@ def plotConfusionMatrix(predictions, true_labels, labels):
     
 def findScaler(x, scalerType='standard'):
     #initialize the scaler
-    if scalerType == 'robust':
-        scaler = RobustScaler()
-    elif scalerType == 'standard':
-        scaler = StandardScaler()
-    temp = []
-    #online fit on all data reshaped as array
-    for count, sample in enumerate(x):
-        sample = np.reshape(sample,(sample.shape[0]*sample.shape[1])).reshape(1, -1)
-        temp.append(sample)
-    temp=np.vstack(temp)
-    scaler.fit(temp)
-    return scaler    
+    
+    
+    scalers = []
+    for i in range(x.shape[3]):
+        temp = []
+        if scalerType == 'robust':
+            scaler = RobustScaler()
+        elif scalerType == 'standard':
+            scaler = StandardScaler()
+        for count, sample in enumerate(x):
+            tmp = np.reshape(sample[:,:,i],(sample.shape[0]*sample.shape[1])).reshape(1, -1)
+            temp.append(tmp)    
+        temp = np.vstack(temp)
+        scaler.fit(temp)
+        scalers.append(scaler)
+    return scalers    
 
-def scale(x, scaler):
+def scale(x, scalers):
     #scaling data with the trained scaler  
-    temp = []
-    for count, sample in enumerate(x):
-        sample = np.reshape(sample,(sample.shape[0]*sample.shape[1])).reshape(1, -1)
-        temp.append(sample)
-    temp=np.vstack(temp)
-    temp = scaler.transform(temp)
-    for count, sample in enumerate(temp):
-        x[count] = np.reshape(sample,(x.shape[1],x.shape[2],1))   
+    for i in range(x.shape[3]):
+        temp = []
+        for count, sample in enumerate(x):
+            tmp = np.reshape(sample[:,:,i],(sample.shape[0]*sample.shape[1])).reshape(1, -1)
+            temp.append(tmp)    
+        temp = np.vstack(temp)
+        temp = scalers[i].transform(temp)
+        for count, sample in enumerate(temp):
+            x[count,:,:,i] = np.reshape(sample,(x.shape[1],x.shape[2]))   
         
-def train_test_creator(dic, unknownClass, with_unknown = True, test_size = 0.2, scalerType='standard', unknown_percentage = 0.1):
+def train_test_creator(dic, unknownClass, depth, with_unknown = True, test_size = 0.2, scalerType='standard', unknown_percentage = 0.1):
     X = []
     Y = []
     labelList = []
@@ -102,14 +107,15 @@ def train_test_creator(dic, unknownClass, with_unknown = True, test_size = 0.2, 
     x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=test_size)
     
     #reshape for conv2d layers
-    x_train = np.reshape(x_train, ( x_train.shape[0], x_train.shape[1], x_train.shape[2],1))
-    x_test = np.reshape(x_test, ( x_test.shape[0], x_test.shape[1], x_test.shape[2],1))
+    x_train = np.reshape(x_train, ( x_train.shape[0], x_train.shape[1], x_train.shape[2], depth))
+    x_test = np.reshape(x_test, ( x_test.shape[0], x_test.shape[1], x_test.shape[2],depth))
     
-    scaler = findScaler(x_train, scalerType)
-    
+    scalers = findScaler(x_train, scalerType)
+    for i in scalers:
+        print(i.get_params())
     #scale data
-    scale(x_train, scaler)
-    scale(x_test, scaler)
+    scale(x_train, scalers)
+    scale(x_test, scalers)
     
     #save used data for hyperas use
     with open('variables/train_test_split.pkl', 'wb') as f:  

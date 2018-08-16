@@ -1,15 +1,17 @@
-from keras.activations import softmax
+from keras.activations import softmax, linear
 from keras.layers.advanced_activations import LeakyReLU
 from keras.models import Sequential, load_model
 from keras.layers import Dense, Activation, Flatten, Dropout, Convolution2D, MaxPooling2D, AveragePooling2D, BatchNormalization
+from keras.constraints import maxnorm
+from keras import regularizers
 
 
-def model1(x_train, y_train, baseDim = 64, activation = "softplus", padding = "valid"):
+def model1(x_train, y_train, baseDim = 64, activation = "softplus", padding = "valid", depth = 1):
 
     cnn = Sequential()
 
     cnn.add(Convolution2D(baseDim, (7,4),  strides = (1,1), padding=padding,  activation=activation,
-                          input_shape=(x_train.shape[1], x_train.shape[2],1)))
+                          input_shape=(x_train.shape[1], x_train.shape[2], depth)))
     cnn.add(BatchNormalization())
 
     cnn.add(MaxPooling2D(pool_size=(3,2)))
@@ -35,11 +37,11 @@ def model1(x_train, y_train, baseDim = 64, activation = "softplus", padding = "v
     return cnn
     
 
-def model2 (x_train, y_train, baseDim = 128, activation = "softplus", padding = "valid"):
+def model2 (x_train, y_train, baseDim = 128, activation = "softplus", padding = "valid", depth = 1):
     cnn = Sequential()
 
     cnn.add(Convolution2D(baseDim, (6,4),  strides = (1,1), padding=padding, 
-                          input_shape=(x_train.shape[1], x_train.shape[2],1)))
+                          input_shape=(x_train.shape[1], x_train.shape[2],depth)))
     cnn.add(BatchNormalization())
     cnn.add(Activation(activation))
     
@@ -76,11 +78,11 @@ def model2 (x_train, y_train, baseDim = 128, activation = "softplus", padding = 
 
     return cnn
     
-def model3(x_train, y_train, baseDim = 16, activation = "softplus", padding = "same"):
+def model3(x_train, y_train, baseDim = 16, activation = "softplus", padding = "same", depth = 1):
     cnn = Sequential()
 
     cnn.add(Convolution2D(baseDim, (4,2),  strides = (1,1), padding="valid", 
-                          input_shape=(x_train.shape[1], x_train.shape[2],1)))
+                          input_shape=(x_train.shape[1], x_train.shape[2],depth)))
     cnn.add(Activation(activation))
 
     cnn.add(Convolution2D(baseDim * 2, (2,2),  strides = (1,1), padding=padding))
@@ -129,26 +131,22 @@ def model3(x_train, y_train, baseDim = 16, activation = "softplus", padding = "s
     return cnn
 
 
-def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding = "same"):
+def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding = "same", depth = 1, dropout = 0.2, regularizer = 0.01):
     cnn = Sequential()
-    
+    cnn.add(Dropout(dropout))
     cnn.add(Convolution2D(baseDim*2, (3,3),  strides = (1,1), padding=padding, 
-                          input_shape=(x_train.shape[1], x_train.shape[2],1)))
+                          input_shape=(x_train.shape[1], x_train.shape[2],depth)))
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
     cnn.add(LeakyReLU(alpha=.1))
+    cnn.add(MaxPooling2D(pool_size=(2,2)))
     
-    cnn.add(Convolution2D(baseDim, (1,1),  strides = (1,1), padding=padding))
+    cnn.add(Dropout(dropout))
+    cnn.add(Convolution2D(baseDim, (3,3),  strides = (1,1), padding=padding))
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
     cnn.add(LeakyReLU(alpha=.1))    
-    #cnn.add(MaxPooling2D(pool_size=(2,2)))
-    
-    
-    cnn.add(Convolution2D(baseDim * 4, (3,3),  strides = (1,1), padding=padding))
-    cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
-    cnn.add(LeakyReLU(alpha=.1))
-    
     cnn.add(MaxPooling2D(pool_size=(2,2)))
 
+    cnn.add(Dropout(dropout))
     cnn.add(Convolution2D(baseDim, (1,1),  strides = (1,1), padding=padding))
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
     cnn.add(LeakyReLU(alpha=.1))
@@ -168,6 +166,7 @@ def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding
     
     cnn.add(MaxPooling2D(pool_size=(2,2)))
 
+    cnn.add(Dropout(dropout))
     cnn.add(Convolution2D(baseDim*2, (1,1),  strides = (1,1), padding=padding))
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
     cnn.add(LeakyReLU(alpha=.1))
@@ -186,13 +185,13 @@ def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding
     
     cnn.add(MaxPooling2D(pool_size=(2,2)))
     
-    
+    cnn.add(Dropout(dropout))
     cnn.add(Convolution2D(baseDim*2*2, (1,1),  strides = (1,1), padding=padding))
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
     cnn.add(LeakyReLU(alpha=.1))
     
     
-    cnn.add(Convolution2D(baseDim*8*2*2, (2,1),  strides = (1,1), padding=padding))
+    cnn.add(Convolution2D(baseDim*8*2*2, (3,3),  strides = (1,1), padding=padding))
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
     cnn.add(LeakyReLU(alpha=.1))
     
@@ -202,7 +201,7 @@ def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding
     cnn.add(LeakyReLU(alpha=.1))
     
     
-    cnn.add(Convolution2D(baseDim*8*2*2, (2,1),  strides = (1,1), padding=padding))
+    cnn.add(Convolution2D(baseDim*8*2*2, (3,3),  strides = (1,1), padding=padding))
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
     cnn.add(LeakyReLU(alpha=.1))
     
@@ -211,12 +210,15 @@ def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))    
     cnn.add(LeakyReLU(alpha=.1))
    
+    cnn.add(Convolution2D(baseDim*62, (1,1),  strides = (1,1), padding=padding))
+    cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))    
+    cnn.add(Activation('linear'))
     
-    cnn.add(AveragePooling2D(pool_size=(3,1)))
+    cnn.add(AveragePooling2D(pool_size=(6,1)))
 
     cnn.add(Flatten())
-    cnn.add(Dropout(0.85))
-    cnn.add(Dense(80, activation=activation))
+    cnn.add(Dropout(dropout*2))
+    cnn.add(Dense(80, activation=activation, kernel_regularizer=regularizers.l2(regularizer)))
 
     
     cnn.add(BatchNormalization())
