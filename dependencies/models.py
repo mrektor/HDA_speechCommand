@@ -214,7 +214,7 @@ def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))    
     cnn.add(Activation('linear'))
     
-    cnn.add(AveragePooling2D(pool_size=(6,1)))
+    cnn.add(AveragePooling2D(pool_size=(3,3)))
 
     cnn.add(Flatten())
     cnn.add(Dropout(dropout*2))
