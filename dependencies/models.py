@@ -1,7 +1,7 @@
 from keras.activations import softmax, linear
 from keras.layers.advanced_activations import LeakyReLU
 from keras.models import Sequential, load_model
-from keras.layers import Dense, Activation, Flatten, Dropout, Convolution2D, MaxPooling2D, AveragePooling2D, BatchNormalization
+from keras.layers import Dense, Activation, Flatten, Dropout, Convolution2D, MaxPooling2D, AveragePooling2D, BatchNormalization, GlobalAveragePooling2D
 from keras.constraints import maxnorm
 from keras import regularizers
 
@@ -131,7 +131,7 @@ def model3(x_train, y_train, baseDim = 16, activation = "softplus", padding = "s
     return cnn
 
 
-def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding = "same", depth = 1, dropout = 0.2, regularizer = 0.01):
+def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding = "same", depth = 1, dropout = 0.1, regularizer = 0.01):
     cnn = Sequential()
     cnn.add(Dropout(dropout))
     cnn.add(Convolution2D(baseDim*2, (3,3),  strides = (1,1), use_bias=False, padding=padding, 
@@ -214,14 +214,14 @@ def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))    
     cnn.add(Activation('linear'))
     
-    cnn.add(AveragePooling2D(pool_size=(3,3)))
+    cnn.add(GlobalAveragePooling2D())
 
-    cnn.add(Flatten())
-    cnn.add(Dropout(dropout*2))
-    cnn.add(Dense(80, activation=activation, kernel_regularizer=regularizers.l2(regularizer)))
+    #cnn.add(Flatten())
+    cnn.add(Dropout(dropout*3))
+    cnn.add(Dense(200, activation=activation, kernel_regularizer=regularizers.l2(regularizer)))
 
     
-    cnn.add(BatchNormalization())
+    cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
 
     cnn.add(Dense(y_train.shape[1], activation="softmax"))
     return cnn
