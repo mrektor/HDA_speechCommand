@@ -90,67 +90,68 @@ def scale(x, scalers):
         for count, sample in enumerate(temp):
             x[count,:,:,i] = np.reshape(sample,(x.shape[1],x.shape[2]))   
         
-def train_test_creator(dic, unknownClass, depth, with_unknown = True, test_size = 0.2, scalerType='standard', unknown_percentage = 0.1):
-    X = []
-    Y = []
-    labelList = []
-    last_class = 0
-    #create X and Y with corresponding index
-    if type(dic)==dict:
-        length = len(dic)
-        for count, key in enumerate(dic):
-            tmp = dic[key]
+def train_test_creator(data, used, unkwown, depth, with_unknown = True, scalerType='standard', unknown_percentage = 0.1):
+    dataset = {}
+    labels = {}
+    for group in data:
+        X = []
+        Y = []
+        labelList = []
+        #create X and Y with corresponding index
+        length = len(data[group])
+        count = 0
+        for key in used:
+            tmp = data[group][key]
             label = np.array(count)
-            labelList.append(key)
-            last_class = count
+            count += 1
             label = np.resize(label, (tmp.shape[0],1))
             X.append(tmp)
             Y.append(label)
-    else:
-        return -1
-    
-    if with_unknown:
-        tot_unk = 0
-        for key in unknownClass:
-            length = unknownClass[key].shape[0]        
-            toUnk = round(length*unknown_percentage)
-            tot_unk += toUnk
-            X.append(unknownClass[key][rnd.sample(range(length),toUnk)])
-        label = np.array(last_class+1)
-        labelList.append('unknown')
-        label = np.resize(label, (tot_unk,1))
-        Y.append(label)
-    
-    #transform X and Y (lists) in ndarray 
-    X = np.vstack(X)
-    Y = np.vstack(Y)
-    #transform Y into 1-hot array
-    Y = np_utils.to_categorical(Y, np.max(Y)+1)
-    #split into train and test sets
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=test_size)
-    
-    #reshape for conv2d layers
-    x_train = np.reshape(x_train, ( x_train.shape[0], x_train.shape[1], x_train.shape[2], depth))
-    x_test = np.reshape(x_test, ( x_test.shape[0], x_test.shape[1], x_test.shape[2], depth))
-    
+
+        if with_unknown:
+            tot_unk = 0
+            for key in unknown:
+                length = data[group][key].shape[0]        
+                toUnk = round(length*unknown_percentage)
+                tot_unk += toUnk
+                X.append(data[group][rnd.sample(range(length),toUnk)])
+            label = np.array(count)
+            labelList.append('unknown')
+            label = np.resize(label, (tot_unk,1))
+            Y.append(label)
+
+        #transform X and Y (lists) in ndarray 
+        X = np.vstack(X)
+        Y = np.vstack(Y)
+        #transform Y into 1-hot array
+        labels[group] = np_utils.to_categorical(Y, np.max(Y)+1)
+        
+
+        #reshape for conv2d layers
+        dataset[group] = np.reshape(X, ( X.shape[0], X.shape[1], X.shape[2], depth))
+
     if scalerType == 'robust' or scalerType == 'standard' :
-        scalers = findScaler(x_train, scalerType)
+        scalers = findScaler(dataset['Train'], scalerType)
         #scale data
-        scale(x_train, scalers)
-        scale(x_test, scalers)
-    
+        scale(dataset['Train'], scalers)
+        scale(dataset['Test'], scalers)
+        scale(dataset['Validation'], scalers)
+
     #save used data for hyperas use
     with open('variables/train_test_split.pkl', 'wb') as f:  
-        pickle.dump(x_train, f)
-        pickle.dump(y_train, f)
-        pickle.dump(x_test, f)
-        pickle.dump(y_test, f) 
+        pickle.dump(dataset, f)
+        pickle.dump(labels, f)
     with open('variables/labelList.pkl', 'wb') as f:  
-        pickle.dump(labelList, f)
-        
-    return x_train, y_train, x_test, y_test, labelList 
+        pickle.dump(used, f)
 
+def load_dataset():
+    #load used data
+    with open('variables/train_test_split.pkl', 'rb') as f: 
+        dataset = pickle.load(f)
+        labels = pickle.load(f)
+    return dataset, labels
 
+       
 #show net
 def strip_consts(graph_def, max_const_size=32):
     """Strip large constant values from graph_def."""
