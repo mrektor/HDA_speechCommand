@@ -170,7 +170,8 @@ def scale(x, scalers):
         temp = np.vstack(temp)
         temp = scalers[i].transform(temp)
         for count, sample in enumerate(temp):
-            x[count,:,:,i] = np.reshape(sample,(x.shape[1],x.shape[2]))   
+            x[count,:,:,i] = np.reshape(sample,(x.shape[1],x.shape[2])) 
+    return x
         
 def train_test_creator(data, used, unkwown, depth, with_unknown = True, scalerType='standard', unknown_percentage = 0.1):
     dataset = {}
@@ -215,8 +216,8 @@ def train_test_creator(data, used, unkwown, depth, with_unknown = True, scalerTy
     if scalerType == 'robust' or scalerType == 'standard' :
         scalers = findScaler(dataset['Train'], scalerType)
         #scale data
-        for key in group in dataset:
-            scale(dataset[group], scalers)
+        for group in dataset:
+            dataset[group] = scale(dataset[group], scalers)
 
     #save used data for hyperas use
     with open('variables/train_test_split.pkl', 'wb') as f:  
@@ -224,6 +225,7 @@ def train_test_creator(data, used, unkwown, depth, with_unknown = True, scalerTy
         pickle.dump(labels, f)
     with open('variables/labelList.pkl', 'wb') as f:  
         pickle.dump(used, f)
+    return dataset
 
 def load_dataset():
     #load used data
@@ -274,12 +276,9 @@ def show_graph(graph_def, max_const_size=32):
 def data():
     #load used data
     with open('variables/train_test_split.pkl', 'rb') as f: 
-        x_train = pickle.load(f)
-        y_train = pickle.load(f)
-        x_test = pickle.load(f)
-        y_test = pickle.load(f) 
-    return x_train, y_train, x_test, y_test 
-
+        dataset = pickle.load(f)
+        labels = pickle.load(f)
+    return dataset['Train'], labels['Train'], dataset['Test'], labels['Test']
 def create_model(x_train, y_train, x_test, y_test):
     activation = 'softplus'
     minim = {{choice([8,16,20,24,32,30,46,50,64])}}

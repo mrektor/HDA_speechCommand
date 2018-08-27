@@ -11,7 +11,7 @@ def model1(x_train, y_train, baseDim = 64, activation = "softplus", padding = "v
     cnn = Sequential()
 
     cnn.add(Convolution2D(baseDim, (7,4),  strides = (1,1), use_bias=False, padding=padding,  activation=activation,
-                          input_shape=(x_train.shape[1], x_train.shape[2], depth)))
+                          input_shape=(x_train.shape[1], x_train.shape[2], depth), name = 'input'))
     cnn.add(BatchNormalization())
 
     cnn.add(MaxPooling2D(pool_size=(3,2)))
@@ -33,7 +33,7 @@ def model1(x_train, y_train, baseDim = 64, activation = "softplus", padding = "v
     cnn.add(Dropout(0.75))
     cnn.add(BatchNormalization())
 
-    cnn.add(Dense(y_train.shape[1], activation="sigmoid"))
+    cnn.add(Dense(y_train.shape[1], activation="sigmoid", name = 'output'))
     return cnn
     
 
@@ -82,7 +82,7 @@ def model3(x_train, y_train, baseDim = 16, activation = "softplus", padding = "s
     cnn = Sequential()
 
     cnn.add(Convolution2D(baseDim, (4,2),  strides = (1,1), padding="valid", 
-                          input_shape=(x_train.shape[1], x_train.shape[2],depth)))
+                          input_shape=(x_train.shape[1], x_train.shape[2],depth),  name = 'input'))
     cnn.add(Activation(activation))
 
     cnn.add(Convolution2D(baseDim * 2, (2,2),  strides = (1,1), padding=padding))
@@ -127,15 +127,15 @@ def model3(x_train, y_train, baseDim = 16, activation = "softplus", padding = "s
     cnn.add(Dropout(0.5))
     cnn.add(BatchNormalization())
 
-    cnn.add(Dense(y_train.shape[1], activation="softmax"))
+    cnn.add(Dense(y_train.shape[1], activation="softmax", name = 'output'))
     return cnn
 
 
 def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding = "same", depth = 1, dropout = 0.1, regularizer = 0.01):
     cnn = Sequential()
-    cnn.add(Dropout(dropout))
+    #cnn.add(Dropout(dropout))
     cnn.add(Convolution2D(baseDim*2, (3,3),  strides = (1,1), use_bias=False, padding=padding, 
-                          input_shape=(x_train.shape[1], x_train.shape[2],depth)))
+                          input_shape=(x_train.shape[1], x_train.shape[2],depth), name = 'input'))
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
     cnn.add(LeakyReLU(alpha=.1))
     #cnn.add(MaxPooling2D(pool_size=(2,2)))
@@ -223,5 +223,5 @@ def tinyDarknet(x_train, y_train, baseDim = 16, activation = "softplus", padding
     
     cnn.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
 
-    cnn.add(Dense(y_train.shape[1], activation="softmax"))
+    cnn.add(Dense(y_train.shape[1], activation="softmax", name = 'output'))
     return cnn
