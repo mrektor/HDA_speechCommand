@@ -20,6 +20,113 @@ import hashlib
 import re
 import os
 import librosa
+import random as rnd
+import re
+
+rnd.seed(1)
+
+def stackData(inputData, augmentedData, iterate):
+    if isinstance(inputData, list):
+         for count, layer in enumerate(inputData):
+            inputData[count] = np.vstack((inputData[count], augmentedData[count][iterate]))
+    else:
+        inputData = np.vstack((inputData, augmentedData[iterate]))
+    return inputData
+
+def meltData(inputData, augmentedData, inputLabel, augmentedLabel, percentage):    
+    if isinstance(augmentedData, list):
+        size = augmentedData[0].shape[0]
+    else:
+        size = augmentedData.shape[0]
+    
+    toAugment = round(size * percentage)
+    iterate = rnd.sample(range(size),toAugment)
+    
+    inputData = stackData(inputData, augmentedData, iterate)
+    inputLabel = stackData(inputLabel, augmentedLabel, iterate)
+    return inputData, inputLabel
+
+def getName(index):
+    if index == 0:
+        return 'Train'
+    elif index == 1:
+        return 'Test'
+    elif index == 2:
+        return 'Validation'
+    elif index == 3:
+        return 'AugmentedTrain'
+    
+def modelSelection(model, data, labels):
+    models = ['model1', 'model2', 'tinyDarknet', 'SiSoInc', 'MiSoInc', 'SiMoInc']
+    if model == models[0] or model == models[1] or model == models[2] or model == models[3]:
+        validation_data=({'input_input': data['Validation']}, {'output': labels['Validation']})
+        inputData = data['Train']
+        inputLabel = labels['Train']
+        testData = data['Test']
+        testLabel = labels['Test']
+        validData = data['Validation']
+        validLabel = labels['Validation']
+        augmentedData = data['AugmentedTrain']
+        augmentedLabel = labels['AugmentedTrain']
+        loss_weights={'output': 1.}
+    elif model == models[4]:
+        validation_data=({'first': data['Validation'][:,:,:,0, np.newaxis], 'second': data['Validation'][:,:,:,1, np.newaxis], 'third': data['Validation'][:,:,:,2, np.newaxis]}, {'output': labels['Validation']})
+        inputData = [data['Train'][:,:,:,0, np.newaxis], data['Train'][:,:,:,1, np.newaxis], data['Train'][:,:,:,2, np.newaxis]]
+        inputLabel = labels['Train']
+        testData = [data['Test'][:,:,:,0, np.newaxis], data['Test'][:,:,:,1, np.newaxis], data['Test'][:,:,:,2, np.newaxis]]
+        testLabel = labels['Test']
+        validData = [data['Validation'][:,:,:,0, np.newaxis], data['Validation'][:,:,:,1, np.newaxis], data['Validation'][:,:,:,2, np.newaxis]]
+        validLabel = labels['Validation']
+        augmentedData = [data['AugmentedTrain'][:,:,:,0, np.newaxis], data['AugmentedTrain'][:,:,:,1, np.newaxis], data['AugmentedTrain'][:,:,:,2, np.newaxis]]
+        augmentedLabel = labels['AugmentedTrain']
+        loss_weights={'output': 1.}
+    elif model == models[5]:
+        inputData = data['Train']
+        inputLabel = [labels['Train'], labels['Train'], labels['Train']]
+        validation_data=({'input': data['Validation']}, {'output0': labels['Validation'], 'output1': labels['Validation'], 'output2': labels['Validation']})
+        testData = data['Test']
+        testLabel = [labels['Test'], labels['Test'], labels['Test']]
+        validData = data['Validation']
+        validLabel = [labels['Validation'], labels['Validation'], labels['Validation']]
+        augmentedData = data['AugmentedTrain']
+        augmentedLabel  = [labels['AugmentedTrain'], labels['AugmentedTrain'], labels['AugmentedTrain']]
+        loss_weights={'output0': 1., 'output1': 1., 'output2' : 1.}
+    return inputData, inputLabel, testData, testLabel, validData, validLabel, augmentedData, augmentedLabel, validation_data, loss_weights
+
+def plotHistory(epochs, fitted, title):
+    top3 = re.compile('.*top3*')
+    acc = re.compile('.*acc')
+    figs, axs = plt.subplots(1,3, figsize=(10, 5))
+    for key in fitted[0].history:
+        if top3.match(key):            
+            ax = axs[0]
+            ax.set_title('Top3 accuracy')
+        elif acc.match(key):
+            ax = axs[1]
+            ax.set_title('Accuracy')
+        else:
+            ax = axs[2]
+            ax.set_title('Loss')
+        y = []
+        for count, fit in enumerate(fitted):
+            y.extend(fit.history[key]) 
+            ax.axvline(x=len(y), color = 'red')
+        ax.plot(range(1, len(y)+1),y,label=key)     
+    plt.suptitle('Training history')
+    for ax in axs:
+        legend = ax.legend(loc='best', shadow=True)
+    
+    frame = legend.get_frame()
+    frame.set_facecolor('0.90')
+    for label in legend.get_texts():
+        label.set_fontsize('large')
+
+    for label in legend.get_lines():
+        label.set_linewidth(1.5)  # the legend line width
+        
+    plt.show()
+
+
 def which_set(filename, validation_percentage, testing_percentage, totClass):
     """Determines which data partition the file should belong to.
     We want to keep files in the same training, validation, or testing sets even
@@ -97,6 +204,7 @@ def stretch(data, rate=1):
 
     return data
 
+#http://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
 def plot_confusion_matrix(preds, y_true, classes,
                           normalize=False,
                           title='Confusion matrix',
@@ -121,7 +229,9 @@ def plot_confusion_matrix(preds, y_true, classes,
         print("Normalized confusion matrix")
     else:
         print('Confusion matrix, without normalization')
-
+    
+    fig, ax = plt.subplots()
+    
     #print(cm)
     if plot:
         plt.imshow(cm, interpolation='nearest', cmap=cmap)
@@ -173,13 +283,12 @@ def scale(x, scalers):
             x[count,:,:,i] = np.reshape(sample,(x.shape[1],x.shape[2])) 
     return x
         
-def train_test_creator(data, used, unkwown, depth, with_unknown = True, scalerType='standard', unknown_percentage = 0.1):
+def train_test_creator(data, used, unknown, depth, with_unknown = True, scalerType='standard', unknown_percentage = 0.1):
     dataset = {}
     labels = {}
     for group in data:
         X = []
         Y = []
-        labelList = []
         #create X and Y with corresponding index
         length = len(data[group])
         count = 0
@@ -190,35 +299,38 @@ def train_test_creator(data, used, unkwown, depth, with_unknown = True, scalerTy
             label = np.resize(label, (tmp.shape[0],1))
             X.append(tmp)
             Y.append(label)
-
-        if with_unknown:
-            tot_unk = 0
-            for key in unknown:
-                length = data[group][key].shape[0]        
-                toUnk = round(length*unknown_percentage)
-                tot_unk += toUnk
-                X.append(data[group][rnd.sample(range(length),toUnk)])
-            label = np.array(count)
-            labelList.append('unknown')
-            label = np.resize(label, (tot_unk,1))
-            Y.append(label)
+        if group != 'AugmentedTrain':
+            if with_unknown:
+                tot_unk = 0
+                for key in unknown:
+                    length = data[group][key].shape[0]        
+                    toUnk = round(length*unknown_percentage)
+                    tot_unk += toUnk
+                    X.append(data[group][key][rnd.sample(range(length),toUnk)])
+                label = np.array(count)
+                label = np.resize(label, (tot_unk,1))
+                Y.append(label)
 
         #transform X and Y (lists) in ndarray 
         X = np.vstack(X)
         Y = np.vstack(Y)
         #transform Y into 1-hot array
-        labels[group] = np_utils.to_categorical(Y, np.max(Y)+1)
+        if group == 'AugmentedTrain' and with_unknown:
+            labels[group] = np_utils.to_categorical(Y, np.max(Y)+2)
+        else:
+            labels[group] = np_utils.to_categorical(Y, np.max(Y)+1)
         
 
         #reshape for conv2d layers
         dataset[group] = np.reshape(X, ( X.shape[0], X.shape[1], X.shape[2], depth))
-
+    
     if scalerType == 'robust' or scalerType == 'standard' :
         scalers = findScaler(dataset['Train'], scalerType)
         #scale data
         for group in dataset:
             dataset[group] = scale(dataset[group], scalers)
-
+    if with_unknown:
+        used.append('unknown')
     #save used data for hyperas use
     with open('variables/train_test_split.pkl', 'wb') as f:  
         pickle.dump(dataset, f)
