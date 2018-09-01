@@ -195,105 +195,73 @@ def cBN(inputLayer, filt = 64, size = (1,1), padding = 'same', activation = 'rel
     #cbn = BatchNormalization(epsilon=1e-05, momentum=0.1, axis=-1)(cbn)
     return cbn
 
-def inception(inputLayer, filt = 64, base = 3):
+def lin_inception(inputLayer, filt = 60, base = 3):
     tower_1 = cBN(inputLayer, filt = filt)   
-    tower_1 = cBN(tower_1, size = (base,base), filt = filt)
+    tower_1 = cBN(tower_1, size = (base,1), filt = filt+20)
 
     tower_2 = cBN(inputLayer, filt = filt)
-    tower_2 = cBN(tower_2, size = (base+2,base+2), filt = filt)
-    
-    tower_3 = MaxPooling2D((3,3), strides=(1,1), padding='same')(inputLayer)
-    tower_3 = cBN(tower_3, filt = filt)
+    tower_2 = cBN(tower_2, size = (base+1,1), filt = filt+20)
+
+    tower_3 = cBN(inputLayer, filt = filt)
+    tower_3 = cBN(tower_3, filt = filt+20, size = (base+2,1))
     
     output = concatenate([tower_1, tower_2, tower_3], axis = 3)
     return output
 
-def SiSoInception(x_train, y_train, baseDim = 10, activation = "softplus", dropout = 0.15):
-    input_img = Input(name = 'input_input', shape = (x_train.shape[1], x_train.shape[2], x_train.shape[3]))
+def inception(inputLayer, filt = 64, base = 3):
+    tower_1 = cBN(inputLayer, filt = filt)   
+    tower_1 = cBN(tower_1, size = (base,base), filt = filt+20)
 
-    output = Convolution2D(120, (3,round(x_train[0].shape[2])))(input_img)
-    output = lin_inception(output, filt = 80, base = 3)
+    tower_2 = cBN(inputLayer, filt = filt)
+    tower_2 = cBN(tower_2, size = (base+2,base+2), filt = filt+20)
+    
+    tower_3 = MaxPooling2D((3,3), strides=(1,1), padding='same')(inputLayer)
+    tower_3 = cBN(tower_3, filt = filt+20)
+    
+    output = concatenate([tower_1, tower_2, tower_3], axis = 3)
+    return output
 
-    output = MaxPooling2D(pool_size=(3,1), padding='same')(concat)
+def singleInputMFCC(x_train, name):
+    single_input = Input(name = name, shape = (x_train[0].shape[1], x_train[0].shape[2], 1))
+    output = Convolution2D(140, (5,round(x_train[0].shape[2])))(single_input)
+    output = lin_inception(output, filt = 60, base = 3) 
+    return single_input, output
+
+def SiSoInception(x_train, y_train, baseDim = 40, dropout = 0.5):
+    single_input = Input(name = 'input_input', shape = (x_train.shape[1], x_train.shape[2], x_train.shape[3]))
+    output = Convolution2D(140, (5,round(x_train.shape[2])))(single_input)
+    output = lin_inception(output, filt = 60, base = 3) 
+    
+    output = MaxPooling2D(pool_size=(3,1), padding='same')(output)
     output = lin_inception(output, filt = baseDim, base = 3)
     
-    output = AveragePooling2D((11,1))(output)
-    output = Flatten()(output)
-
-    output = Dense(70)(output)
-    output = Activation('relu')(output)
+    output = GlobalAveragePooling2D()(output)
+    #output = Flatten()(output)
+    output = Dense(70, activation = 'relu')(output)
     output = Dropout(dropout)(output)
 
     output = Dense(y_train.shape[1], name = 'output', activation='softmax')(output)
-    cnn = Model(inputs = [first_input, second_input, third_input], outputs = output)
+    cnn = Model(inputs = single_input, outputs = output)
     return cnn
 
 #################################
-def lin_inception(inputLayer, filt = 64, base = 3):
-    tower_1 = cBN(inputLayer, filt = filt)   
-    tower_1 = cBN(tower_1, size = (base,1), filt = filt)
-
-    tower_2 = cBN(inputLayer, filt = filt)
-    tower_2 = cBN(tower_2, size = (base+1,1), filt = filt)
-
-    tower_3 = cBN(inputLayer, filt = filt)
-    tower_3 = cBN(tower_3, filt = filt, size = (base+2,1))
-    
-    output = concatenate([tower_1, tower_2, tower_3], axis = 3)
-    return output
 
 
-def singleInputMFCC(x_train, name, mfcc = True):
-    single_input = Input(name = name, shape = (x_train[0].shape[1], x_train[0].shape[2], 1))
-    if mfcc:
-        output = Convolution2D(120, (3,round(x_train[0].shape[2])))(single_input)
-        output = lin_inception(output, filt = 80, base = 3)
-    else:
-        output = Convolution2D(16, (1,1), padding = "same")(single_input)
-        output = LeakyReLU(alpha=.1)(output)
-        output = Convolution2D(32, (3,3), padding = "same")(output)
-        output = LeakyReLU(alpha=.1)(output)
-        output = MaxPooling2D(pool_size=(2,2))(output)
-        output = Convolution2D(16, (1,1), padding = "same")(output)
-        output = LeakyReLU(alpha=.1)(output)
-        output = Convolution2D(64, (3,3), padding = "same")(output)
-        output = LeakyReLU(alpha=.1)(output)
-        output = Convolution2D(16, (1,1), padding = "same")(output)
-        output = LeakyReLU(alpha=.1)(output)
-        output = Convolution2D(64, (3,3), padding = "same")(output)
-        output = LeakyReLU(alpha=.1)(output)
-        output = MaxPooling2D(pool_size=(2,2))(output)
-        output = Convolution2D(16, (1,1), padding = "same")(output)
-        output = LeakyReLU(alpha=.1)(output)
-        output = Convolution2D(128, (3,3), padding = "same")(output)
-        output = LeakyReLU(alpha=.1)(output)
-        output = Convolution2D(16, (1,1), padding = "same")(output)
-        output = LeakyReLU(alpha=.1)(output)
-        output = Convolution2D(128, (3,3), padding = "same")(output)
-        output = LeakyReLU(alpha=.1)(output)    
-    return single_input, output
 
-def firstConcat(x_train, mfcc = True):
-    first, first_output = singleInputMFCC(x_train,'first', mfcc = mfcc)
-    second, second_output = singleInputMFCC(x_train,'second', mfcc = mfcc)
-    third, third_output = singleInputMFCC(x_train,'third', mfcc = mfcc)
+def firstConcat(x_train):
+    first, first_output = singleInputMFCC(x_train,'first')
+    second, second_output = singleInputMFCC(x_train,'second')
+    third, third_output = singleInputMFCC(x_train,'third')
     concat = concatenate([first_output, second_output, third_output], axis = 3)
     return first, second, third, concat
-def MiSoInception(x_train, y_train, baseDim = 64, dropout = 0.3, mfcc = True):
-    first_input, second_input, third_input, concat = firstConcat(x_train, mfcc = mfcc)
+def MiSoInception(x_train, y_train, baseDim = 40, dropout = 0.5):
+    first_input, second_input, third_input, concat = firstConcat(x_train)
 
-    if mfcc:
-        output = MaxPooling2D(pool_size=(3,1), padding='same')(concat)
-        output = lin_inception(output, filt = baseDim, base = 3)
-        output = AveragePooling2D((11,1))(output)
-        output = Flatten()(output)
-    else:
-        output = MaxPooling2D(pool_size=(5,3), padding='same')(concat)
-        output = inception(output, filt = baseDim, base = 2)
-        output = GlobalAveragePooling2D()(output)
-
-    output = Dense(70)(output)
-    output = Activation('relu')(output)
+    output = MaxPooling2D(pool_size=(3,1), padding='same')(concat)
+    output = lin_inception(output, filt = baseDim, base = 3)
+    output = GlobalAveragePooling2D()(output)
+    #output = Flatten()(output)
+    output = Dense(70, activation = 'relu')(output)
     output = Dropout(dropout)(output)
 
     output = Dense(y_train.shape[1], name = 'output', activation='softmax')(output)
@@ -309,7 +277,7 @@ def extraClassifier(name, inputLayer, outputShape):
     output0 = Dense( outputShape, name = name, activation='softmax')(output0)
     return output0
 
-def SiMoInception(x_train, y_train, baseDim = 64, dropout = 0.4):
+def SiMoInception(x_train, y_train, baseDim = 64, dropout = 0.6):
     input_img = Input(name = 'input', shape = (x_train.shape[1], x_train.shape[2], x_train.shape[3]))
 
     output = cBN(input_img)
@@ -321,16 +289,25 @@ def SiMoInception(x_train, y_train, baseDim = 64, dropout = 0.4):
 
     output = inception(output, filt = baseDim)
     output0 = extraClassifier('output0', output, y_train[0].shape[1])
-
+    output = inception(output, filt = baseDim)
+    
     output = MaxPooling2D(pool_size=(3,2), padding='same')(output)
 
     output = inception(output, filt = baseDim)
     output1 = extraClassifier('output1',output, y_train[0].shape[1])
-    output = inception(output, filt = baseDim)
+    #output = inception(output, filt = baseDim)
+    
+    output = MaxPooling2D(pool_size=(3,2), padding='same')(output)
+    
+    output = cBN(output)
+    output = cBN(output, filt = 128, size = (2,2))
+    output = cBN(output)
+    output = cBN(output, filt = 256, size = (2,2))
 
     output = GlobalAveragePooling2D()(output)
-
-    output = Dense(90, activation = 'relu')(output)
+    #output = BatchNormalization(epsilon=1e-05, momentum=0.1)(output)
+    #output = Activation('softplus')(output)
+    #output = Dense(40, activation = 'softplus')(output)
     output = Dropout(dropout)(output)
     output2 = Dense(y_train[0].shape[1], name = 'output2', activation='softmax')(output)
     cnn = Model(inputs = input_img, outputs = [output2, output1, output0])
