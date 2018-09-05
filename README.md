@@ -4,6 +4,10 @@ The project has been developed with IPython using Jupyter Notebook and has two m
  - Dataset and Feature Dumper contains the routine for downloading the dataset, process it and save the used variable for Processing notebook
  - Processing is the plain notebook with data selection
 
+In the dependencies folder there are two .py files:
+ - functions.py where there are all the function used in the code
+ - models.py where there are all the model used in the code
+
 In the CompiledNotebook folder is possible to find pre-run notebook with confusion matrices.
 
 More code is in:
